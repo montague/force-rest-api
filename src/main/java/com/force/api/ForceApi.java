@@ -53,6 +53,7 @@ public class ForceApi {
 	final ApiConfig config;
 	ApiSession session;
 	private boolean autoRenew = false;
+	private int requestTimeout = 0; // in milliseconds, defaults to 0 which is no timeout (infinity)
 
 	public ForceApi(ApiConfig config, ApiSession session) {
 		this.config = config;
@@ -75,6 +76,14 @@ public class ForceApi {
 
 	public ApiSession getSession() {
 		return session;
+	}
+
+	public void setRequestTimeout(int value) {
+		requestTimeout = value;
+	}
+
+	public int getRequestTimeout() {
+		return requestTimeout;
 	}
 
 	public String curlHelper() {
@@ -415,13 +424,15 @@ public class ForceApi {
 			throw new ResourceException(e);
 		}
 	}
-	
+
 	private final String uriBase() {
 		return(session.getApiEndpoint()+"/services/data/"+config.getApiVersionString());
 	}
-	
+
 	private final HttpResponse apiRequest(HttpRequest req) {
 		req.setAuthorization("Bearer "+session.getAccessToken());
+		req.setRequestTimeout(requestTimeout);
+
 		HttpResponse res = Http.send(req);
 		if(res.getResponseCode()==401) {
 			// Perform one attempt to auto renew session if possible
@@ -452,7 +463,7 @@ public class ForceApi {
 			return res;
 		}
 	}
-	
+
 	/**
 	 * Normalizes the JSON response in case it contains responses from
 	 * relationship queries. For e.g.
@@ -460,9 +471,9 @@ public class ForceApi {
 	 * <code>
 	 * Query:
 	 *   select Id,Name,(select Id,Email,FirstName from Contacts) from Account
-	 *   
+	 *
 	 * Json Response Returned:
-	 * 
+	 *
 	 * {
 	 *	  "totalSize" : 1,
 	 *	  "done" : true,
@@ -489,9 +500,9 @@ public class ForceApi {
 	 *	  } ]
 	 *	}
 	 * </code>
-	 * 
+	 *
 	 * Will get normalized to:
-	 * 
+	 *
 	 * <code>
 	 * {
 	 *	  "totalSize" : 1,
@@ -513,12 +524,12 @@ public class ForceApi {
 	 *	        "FirstName" : "John"
 	 *	    } ]
 	 *	  } ]
-	 *	} 
+	 *	}
 	 * </code
-	 * 
+	 *
 	 * This allows Jackson to deserialize the response into it's corresponding Object representation
-	 * 
-	 * @param node 
+	 *
+	 * @param node
 	 * @return
 	 */
 	private final JsonNode normalizeCompositeResponse(JsonNode node){
@@ -529,7 +540,7 @@ public class ForceApi {
 			currNode = elements.next();
 
 			newNode.set(currNode.getKey(),
-						(		currNode.getValue().isObject() && 
+						(		currNode.getValue().isObject() &&
 								currNode.getValue().get("records")!=null
 						)?
 								currNode.getValue().get("records"):
@@ -537,6 +548,6 @@ public class ForceApi {
 					);
 		}
 		return newNode;
-		
+
 	}
 }
